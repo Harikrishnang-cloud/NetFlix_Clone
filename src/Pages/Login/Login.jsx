@@ -1,60 +1,120 @@
-import React, { useState } from 'react';
+import React, { useReducer } from 'react';
 import './Login.css';
 import logo from '../../assets/logo.png';
-import {login,signup} from '../../firebase.js';
 import netflix_spinner from '../../assets/netflix_spinner.gif';
+import { login, signup } from '../../firebase.js';
+
+const initialState = {
+  signState: "Sign In",
+  name: "",
+  email: "",
+  password: "",
+  loading: false
+};
+
+function reducer(state, action) {
+  switch (action.type) {
+    case "UPDATE_FIELD":
+      return { ...state, [action.field]: action.value };
+
+    case "SET_LOADING":
+      return { ...state, loading: action.value };
+
+    case "SET_SIGN_STATE":
+      return { ...state, signState: action.value };
+
+    case "RESET_FIELDS":
+      return { ...state, name: "", email: "", password: "" };
+
+    default:
+      return state;
+  }
+}
 
 const Login = () => {
+  const [state, dispatch] = useReducer(reducer, initialState);
 
-  const [SignState,setSignstate] = useState("Sign In")
+  const user_auth = async (e) => {
+    e.preventDefault();
 
-  const [name,setName] = useState("");
-  const [email,setEmail] = useState("");
-  const [password,setPassword] = useState("");
-  const [loading,setLoading] = useState(false);
-
-  const user_auth = async (event)=>{
-    event.preventDefault();
-    setLoading(true);
-    if(SignState === "Sign In"){
-      await login(email,password)
+    // basic validation (optional)
+    if (!state.email || !state.password || (state.signState === "Sign Up" && !state.name)) {
+      // you could dispatch an error here; for now just console
+      console.warn('Please fill required fields');
+      return;
     }
-    else{
-      await signup(name,email,password)
-    }
-    setLoading(false)
-  }
 
-  return (
-    loading?<div className='login-spinner'>
+    dispatch({ type: "SET_LOADING", value: true });
+
+    try {
+      if (state.signState === "Sign In") {
+        await login(state.email, state.password);
+      } else {
+        await signup(state.name, state.email, state.password);
+      }
+      dispatch({ type: "RESET_FIELDS" });
+    } catch (err) {
+      console.error('Auth error:', err);
+      // set error state or show toast
+    } finally {
+      dispatch({ type: "SET_LOADING", value: false });
+    }
+  };
+
+  return state.loading ? (
+    <div className='login-spinner'>
       <img src={netflix_spinner} alt='spinner'/>
-    </div>:
+    </div>
+  ) : (
     <div className='login'>
       <img src={logo} className='login-logo' alt="logo" />
       <div className='login-form'>
-        <h1>{SignState}</h1>
-        <form>
-          {SignState == "Sign Up" ?
-          <input value={name}onChange={(e)=>{setName(e.target.value)}} type='text' placeholder='Your name'/>:<></>}
-          <input value={email} onChange={(e)=>{setEmail(e.target.value)}} type='email' placeholder='email'/>
-          <input value={password} onChange={(e)=>{setPassword(e.target.value)}} type='Password' placeholder='Password...'/>
-          <button onClick={user_auth} type='submit'>{SignState}</button>
+        <h1>{state.signState}</h1>
+        <form onSubmit={user_auth}>
+          {state.signState === "Sign Up" && (
+            <input
+              value={state.name}
+              onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "name", value: e.target.value })}
+              type='text'
+              placeholder='Your name'
+            />
+          )}
+
+          <input
+            value={state.email}
+            onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "email", value: e.target.value })}
+            type='email'
+            placeholder='Email'
+          />
+
+          <input
+            value={state.password}
+            onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "password", value: e.target.value })}
+            type='password'
+            placeholder='Password...'
+          />
+
+          <button type='submit'>{state.signState}</button>
+
           <div className='form-help'>
             <div className='remember'>
-              <input type='Checkbox'/>
-              <label>Remember Me</label>
+              <input type='checkbox' id='remember'/>
+              <label htmlFor='remember'>Remember Me</label>
             </div>
             <p>Need help?</p>
           </div>
         </form>
+
         <div className='form-switch'>
-          {SignState=="Sign In"?<p>New to Netflix? <span onClick={()=>{setSignstate("Sign Up")}}>Sign Up Now</span></p>
-          :<p>Already have account?<span onClick={()=>{setSignstate("Sign In")}}>Sign In Now</span></p>}
-          
+          {state.signState === "Sign In" ? (
+            <p>New to Netflix? <span onClick={() => dispatch({ type: "SET_SIGN_STATE", value: "Sign Up" })}>Sign Up Now</span></p>
+          ) : (
+            <p>Already have account? <span onClick={() => dispatch({ type: "SET_SIGN_STATE", value: "Sign In" })}>Sign In Now</span></p>
+          )}
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Login
+export default Login;
